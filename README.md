@@ -12,6 +12,7 @@ python scaffold.py
 
 - [x] **1.** fetch_text
 - [x] **2.** CharTokenizer
+- [x] **3.** make_batch
 
 ---
 

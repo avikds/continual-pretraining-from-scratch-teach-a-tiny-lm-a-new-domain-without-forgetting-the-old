@@ -63,3 +63,26 @@ class CharTokenizer:
         # Return the number of unique characters in the vocabulary.
         return len(self.itos)
 
+# Step 3 - make_batch
+def make_batch(ids, T, batch, generator):
+    # Sample starting positions uniformly using the supplied generator.
+    # The upper bound is exclusive, ensuring every target window fits.
+    starts = torch.randint(
+        0,
+        len(ids) - T,
+        (batch,),
+        generator=generator
+    )
+
+    # Construct input sequences of length T.
+    x = torch.stack([
+        ids[s : s + T] for s in starts.tolist()
+    ])
+
+    # Construct next-character targets by shifting each input by one.
+    y = torch.stack([
+        ids[s + 1 : s + T + 1] for s in starts.tolist()
+    ])
+
+    return x, y
+
