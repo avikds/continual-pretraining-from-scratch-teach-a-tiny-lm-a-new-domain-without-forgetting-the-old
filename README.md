@@ -23,6 +23,7 @@ python scaffold.py
 - [x] **11.** forgetting_report
 - [x] **12.** old_loss_curve
 - [x] **13.** replay_batch
+- [x] **14.** diagonal_fisher
 
 ---
 

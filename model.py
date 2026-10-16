@@ -501,3 +501,54 @@ def replay_sampler(new_ids, old_ids, T, frac):
 
     return batch_fn
 
+# Step 14 - diagonal_fisher
+def diagonal_fisher(model, ids, T, n_batches, seed, batch=8):
+    # Use a dedicated generator for reproducible batch sampling.
+    generator = torch.Generator().manual_seed(seed)
+
+    # Initialize a diagonal Fisher accumulator for every named parameter.
+    fisher = {
+        name: torch.zeros_like(param)
+        for name, param in model.named_parameters()
+    }
+
+    # Accumulate elementwise squared gradients across batches.
+    for _ in range(n_batches):
+        x, y = make_batch(ids, T, batch, generator)
+
+        # Clear gradients before calculating the current batch's gradients.
+        model.zero_grad(set_to_none=False)
+
+        # Compute the next-character loss and its gradients.
+        loss = lm_loss(model, x, y)
+        loss.backward()
+
+        # Add squared gradients for each parameter.
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                fisher[name].add_(param.grad.detach().square())
+
+    # Average the accumulated squared gradients across batches.
+    if n_batches > 0:
+        for name in fisher:
+            fisher[name].div_(n_batches)
+
+    # Leave the model's gradients cleared after the estimation.
+    model.zero_grad(set_to_none=False)
+
+    return fisher
+
+
+def fisher_summary(fisher, k=3):
+    # Compute the mean Fisher value for each parameter tensor.
+    summary = [
+        (name, float(values.mean().item()))
+        for name, values in fisher.items()
+    ]
+
+    # Sort by importance, from largest mean Fisher value to smallest.
+    summary.sort(key=lambda item: item[1], reverse=True)
+
+    # Return the top-k parameter tensors and their mean Fisher values.
+    return summary[:k]
+
