@@ -14,6 +14,7 @@ python scaffold.py
 - [x] **2.** CharTokenizer
 - [x] **3.** make_batch
 - [x] **4.** load_domains
+- [x] **5.** TinyGPT
 
 ---
 

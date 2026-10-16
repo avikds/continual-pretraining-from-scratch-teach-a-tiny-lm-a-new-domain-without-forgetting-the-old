@@ -119,3 +119,101 @@ def load_domains(max_chars=600000, val_frac=0.1):
         },
     }
 
+# Step 5 - TinyGPT
+import torch.nn as nn
+import torch.nn.functional as F
+
+class Block(nn.Module):
+    def __init__(self, d, heads):
+        super().__init__()
+
+        # Pre-normalization layers.
+        self.ln1 = nn.LayerNorm(d)
+        self.ln2 = nn.LayerNorm(d)
+
+        # Multi-head self-attention projections.
+        self.qkv = nn.Linear(d, 3 * d)
+        self.proj = nn.Linear(d, d)
+
+        # Position-wise feed-forward network.
+        self.fc1 = nn.Linear(d, 4 * d)
+        self.fc2 = nn.Linear(4 * d, d)
+
+        self.heads = heads
+
+    def forward(self, x):
+        # Input shape: (B, T, d)
+        B, T, C = x.shape
+
+        # Normalize and project the input into queries, keys, and values.
+        q, k, v = self.qkv(self.ln1(x)).chunk(3, dim=-1)
+
+        # Split the embedding dimension into multiple attention heads.
+        head_dim = C // self.heads
+
+        q = q.view(B, T, self.heads, head_dim).transpose(1, 2)
+        k = k.view(B, T, self.heads, head_dim).transpose(1, 2)
+        v = v.view(B, T, self.heads, head_dim).transpose(1, 2)
+
+        # Causal attention prevents each position from seeing future tokens.
+        attn = F.scaled_dot_product_attention(
+            q, k, v, is_causal=True
+        )
+
+        # Merge the attention heads back into the embedding dimension.
+        attn = (
+            attn.transpose(1, 2)
+            .contiguous()
+            .view(B, T, C)
+        )
+
+        # First residual connection: self-attention.
+        x = x + self.proj(attn)
+
+        # Second residual connection: feed-forward network.
+        x = x + self.fc2(
+            F.gelu(self.fc1(self.ln2(x)))
+        )
+
+        return x
+
+
+class TinyGPT(nn.Module):
+    def __init__(self, vocab, d=64, heads=4, layers=2, max_len=64):
+        super().__init__()
+
+        # Character-token and positional embeddings.
+        self.wte = nn.Embedding(vocab, d)
+        self.wpe = nn.Embedding(max_len, d)
+
+        # Stack the requested number of transformer blocks.
+        self.blocks = nn.ModuleList([
+            Block(d, heads) for _ in range(layers)
+        ])
+
+        # Final normalization and vocabulary projection.
+        self.lnf = nn.LayerNorm(d)
+        self.head = nn.Linear(d, vocab, bias=False)
+
+        self.max_len = max_len
+
+    def forward(self, idx):
+        # idx has shape (B, T).
+        B, T = idx.shape
+
+        # Construct position IDs on the same device as the input.
+        pos = torch.arange(T, device=idx.device)
+
+        # Add token and positional embeddings.
+        x = self.wte(idx) + self.wpe(pos)
+
+        # Apply the causal transformer blocks.
+        for block in self.blocks:
+            x = block(x)
+
+        # Produce next-character logits of shape (B, T, vocab).
+        x = self.lnf(x)
+        logits = self.head(x)
+
+        return logits
+
