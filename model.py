@@ -915,3 +915,94 @@ def continue_variant(
         "extra": extra,
     }
 
+# Step 21 - cl_experiment
+def cl_experiment(
+    seed=0,
+    pre_steps=400,
+    cont_steps=150,
+    variants=("naive", "rewarm", "replay", "ewc", "lora"),
+    alphas=(0.0, 0.25, 0.5, 0.75, 1.0),
+    max_chars=600000,
+):
+    # Step 1: Pretrain the base model on domain A.
+    base = build_base(
+        seed=seed,
+        pre_steps=pre_steps,
+        max_chars=max_chars,
+    )
+
+    vocab = len(base["domains"]["tok"])
+    cfg = base["cfg"]
+
+    # Snapshot the pretrained weights so every experiment starts
+    # from exactly the same initial model.
+    base_state = {
+        name: tensor.detach().clone()
+        for name, tensor in base["model"].state_dict().items()
+    }
+
+    # Run each continuation strategy independently.
+    variant_results = {}
+    rewarm_state = None
+
+    for name in variants:
+        run = continue_variant(
+            base,
+            name,
+            cont_steps,
+            seed=seed + 1,
+        )
+
+        # Keep only plain result data; omit the model and training history.
+        variant_results[name] = {
+            "report": run["report"],
+            "curve": run["curve"],
+            "extra": run["extra"],
+        }
+
+        # Save the final re-warmed model for weight interpolation.
+        if name == "rewarm":
+            rewarm_state = {
+                key: tensor.detach().clone()
+                for key, tensor in run["model"].state_dict().items()
+            }
+
+    # Step 2: Trace the interpolation path between the base model
+    # and the re-warmed model, if that variant was requested.
+    if rewarm_state is not None:
+        path = interpolation_path(
+            vocab,
+            base_state,
+            rewarm_state,
+            base["domains"],
+            alphas,
+            T=cfg["T"],
+        )
+    else:
+        path = []
+
+    # Step 3: Package the baseline metrics and all experiment results.
+    final_train_loss = (
+        float(base["history"][-1]["loss"])
+        if base["history"]
+        else None
+    )
+
+    n_params = sum(
+        parameter.numel()
+        for parameter in base["model"].parameters()
+    )
+
+    return {
+        "base": {
+            "losses": base["losses"],
+            "final_train_loss": final_train_loss,
+            "n_params": n_params,
+        },
+        "variants": variant_results,
+        "interpolation": path,
+        "pre_steps": pre_steps,
+        "cont_steps": cont_steps,
+        "vocab": vocab,
+    }
+
