@@ -368,3 +368,30 @@ def train_phase(
 
     return history
 
+# Step 10 - domain_losses
+def domain_losses(model, domains, T=64, n_batches=16, seed=7):
+    # Evaluate the model on domain A's validation split.
+    loss_A = eval_loss(
+        model,
+        domains["A"]["val"],
+        T,
+        n_batches,
+        seed,
+    )
+
+    # Evaluate the model on domain B's validation split using
+    # the same seed and evaluation settings for a fair comparison.
+    loss_B = eval_loss(
+        model,
+        domains["B"]["val"],
+        T,
+        n_batches,
+        seed,
+    )
+
+    # Return validation losses keyed by domain.
+    return {
+        "A": loss_A,
+        "B": loss_B,
+    }
+
