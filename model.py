@@ -395,3 +395,29 @@ def domain_losses(model, domains, T=64, n_batches=16, seed=7):
         "B": loss_B,
     }
 
+# Step 11 - forgetting_report
+def forgetting_report(before, after, decimals=4):
+    # Record the original-domain validation losses before and after training.
+    A_before = before["A"]
+    A_after = after["A"]
+
+    # Record the new-domain validation losses before and after training.
+    B_before = before["B"]
+    B_after = after["B"]
+
+    # Positive forgetting means the original domain's loss increased.
+    forgetting = A_after - A_before
+
+    # Positive acquisition means the new domain's loss decreased.
+    acquisition = B_before - B_after
+
+    # Return all metrics rounded to the requested precision as Python floats.
+    return {
+        "A_before": round(float(A_before), decimals),
+        "A_after": round(float(A_after), decimals),
+        "B_before": round(float(B_before), decimals),
+        "B_after": round(float(B_after), decimals),
+        "forgetting": round(float(forgetting), decimals),
+        "acquisition": round(float(acquisition), decimals),
+    }
+
