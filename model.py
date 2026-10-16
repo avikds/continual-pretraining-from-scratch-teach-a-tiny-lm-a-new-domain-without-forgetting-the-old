@@ -458,3 +458,46 @@ def old_loss_curve(history, decimals=4):
         "rise": round(rise, decimals),
     }
 
+# Step 13 - replay_batch
+def replay_batch(new_ids, old_ids, T, batch, frac, generator):
+    # Determine how many windows to replay from the old domain.
+    n_old = int(round(frac * batch))
+    n_new = batch - n_old
+
+    # Sample new-domain windows first, using the shared generator.
+    if n_new > 0:
+        x_new, y_new = make_batch(new_ids, T, n_new, generator)
+
+    # Sample old-domain replay windows after the new-domain windows.
+    if n_old > 0:
+        x_old, y_old = make_batch(old_ids, T, n_old, generator)
+
+    # Handle frac=1: the batch contains only old-domain windows.
+    if n_new == 0:
+        return x_old, y_old
+
+    # Handle frac=0: the batch contains only new-domain windows.
+    if n_old == 0:
+        return x_new, y_new
+
+    # Concatenate along the batch dimension, keeping new rows first.
+    x = torch.cat((x_new, x_old), dim=0)
+    y = torch.cat((y_new, y_old), dim=0)
+
+    return x, y
+
+
+def replay_sampler(new_ids, old_ids, T, frac):
+    # Return a sampler compatible with train_phase.
+    def batch_fn(generator, batch):
+        return replay_batch(
+            new_ids,
+            old_ids,
+            T,
+            batch,
+            frac,
+            generator,
+        )
+
+    return batch_fn
+

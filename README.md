@@ -22,6 +22,7 @@ python scaffold.py
 - [x] **10.** domain_losses
 - [x] **11.** forgetting_report
 - [x] **12.** old_loss_curve
+- [x] **13.** replay_batch
 
 ---
 
