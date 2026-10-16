@@ -728,3 +728,51 @@ def interpolation_path(
 
     return results
 
+# Step 19 - build_base
+def build_base(seed=0, pre_steps=400, cfg=None, max_chars=600000):
+    # Use the specified default training configuration when none is provided.
+    if cfg is None:
+        cfg = {
+            "T": 64,
+            "batch": 32,
+            "lr_max": 3e-3,
+            "lr_min": 3e-4,
+            "warmup": 50,
+        }
+
+    # Load both domains and construct their shared character tokenizer.
+    domains = load_domains(max_chars=max_chars)
+
+    # Seed model initialization for reproducibility.
+    torch.manual_seed(seed)
+
+    # Initialize the GPT model using the shared vocabulary.
+    model = TinyGPT(len(domains["tok"]))
+
+    # Pretrain on domain A (children's stories) only.
+    # The same seed also controls the training batch sampler.
+    history = train_phase(
+        model=model,
+        steps=pre_steps,
+        cfg=cfg,
+        seed=seed,
+        batch_fn=window_sampler(domains["A"]["train"], cfg["T"]),
+    )
+
+    # Evaluate the pretrained model on both validation domains.
+    losses = domain_losses(
+        model,
+        domains,
+        T=cfg["T"],
+    )
+
+    # Package the model and experiment metadata for subsequent phases.
+    return {
+        "model": model,
+        "domains": domains,
+        "cfg": cfg,
+        "history": history,
+        "losses": losses,
+        "seed": seed,
+    }
+

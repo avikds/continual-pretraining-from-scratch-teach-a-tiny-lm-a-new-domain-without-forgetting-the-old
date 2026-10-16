@@ -28,6 +28,7 @@ python scaffold.py
 - [x] **16.** LoRALinear
 - [x] **17.** add_lora
 - [x] **18.** interpolation_path
+- [x] **19.** build_base
 
 ---
 
