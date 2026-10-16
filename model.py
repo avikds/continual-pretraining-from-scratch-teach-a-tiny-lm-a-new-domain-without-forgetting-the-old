@@ -32,3 +32,34 @@ def fetch_text(url, name, max_chars):
 
     return text
 
+# Step 2 - CharTokenizer
+import torch
+
+class CharTokenizer:
+    def __init__(self, texts):
+        # Build one shared vocabulary from all supplied text domains.
+        self.itos = sorted(set("".join(texts)))
+
+        # Create the inverse mapping from characters to integer IDs.
+        self.stoi = {ch: i for i, ch in enumerate(self.itos)}
+
+    def encode(self, s):
+        # Convert characters to IDs, silently skipping unknown characters.
+        # Return a one-dimensional torch.long tensor.
+        return torch.tensor(
+            [self.stoi[ch] for ch in s if ch in self.stoi],
+            dtype=torch.long
+        )
+
+    def decode(self, ids):
+        # Support both Python lists and one-dimensional PyTorch tensors.
+        if isinstance(ids, torch.Tensor):
+            ids = ids.tolist()
+
+        # Convert integer IDs back into their corresponding characters.
+        return "".join(self.itos[int(i)] for i in ids)
+
+    def __len__(self):
+        # Return the number of unique characters in the vocabulary.
+        return len(self.itos)
+
