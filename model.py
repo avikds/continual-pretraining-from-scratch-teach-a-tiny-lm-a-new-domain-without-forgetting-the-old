@@ -628,3 +628,50 @@ class LoRALinear(nn.Module):
         # Add the scaled adapter update to the original output.
         return self.base(x) + self.scale * adapter
 
+# Step 17 - add_lora
+def add_lora(model, rank, alpha):
+    # Attach a LoRA adapter to each specified projection in every block.
+    projections = ("qkv", "proj", "fc1", "fc2")
+
+    for block in model.blocks:
+        for name in projections:
+            # Retrieve the existing linear layer.
+            base = getattr(block, name)
+
+            # Wrap it only if it has not already been wrapped.
+            if not isinstance(base, LoRALinear):
+                setattr(
+                    block,
+                    name,
+                    LoRALinear(base, rank=rank, alpha=alpha),
+                )
+
+    # Freeze the base model and all non-adapter parameters.
+    # Only the LoRA A and B matrices remain trainable.
+    for name, param in model.named_parameters():
+        param.requires_grad_(name.endswith(".A") or name.endswith(".B"))
+
+    # Return the parameters that the optimizer should update.
+    return [
+        param
+        for param in model.parameters()
+        if param.requires_grad
+    ]
+
+
+def set_lora(model, enabled):
+    # Enable or disable every LoRA adapter in the model.
+    for module in model.modules():
+        if isinstance(module, LoRALinear):
+            module.enabled = bool(enabled)
+
+
+def lora_param_count(model):
+    # Count the elements in all LoRA adapter matrices.
+    return sum(
+        param.numel()
+        for module in model.modules()
+        if isinstance(module, LoRALinear)
+        for param in (module.A, module.B)
+    )
+
