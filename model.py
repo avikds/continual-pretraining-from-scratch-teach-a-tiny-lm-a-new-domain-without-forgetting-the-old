@@ -272,3 +272,99 @@ def cosine_lr(step, total, warmup, lr_max, lr_min):
         1.0 + math.cos(math.pi * p)
     )
 
+# Step 9 - train_phase
+def window_sampler(ids, T):
+    # Return a batch function that samples windows of length T
+    # from the given token stream using the supplied generator.
+    def batch_fn(generator, batch):
+        return make_batch(ids, T, batch, generator)
+
+    return batch_fn
+
+
+def train_phase(
+    model,
+    steps,
+    cfg,
+    seed,
+    batch_fn,
+    extra_loss=None,
+    monitor=None,
+    log_every=25,
+    params=None,
+):
+    # Use a dedicated random generator for reproducible batch sampling.
+    generator = torch.Generator().manual_seed(seed)
+
+    # Train all model parameters unless a specific parameter collection
+    # is provided, for example, trainable LoRA parameters.
+    params = list(model.parameters()) if params is None else list(params)
+
+    # Initialize AdamW with zero weight decay as required.
+    optimizer = torch.optim.AdamW(
+        params,
+        lr=cfg["lr_max"],
+        weight_decay=0.0,
+    )
+
+    history = []
+
+    for s in range(steps):
+        # Update the learning rate for every optimizer parameter group.
+        lr = cosine_lr(
+            s,
+            steps,
+            cfg["warmup"],
+            cfg["lr_max"],
+            cfg["lr_min"],
+        )
+
+        for group in optimizer.param_groups:
+            group["lr"] = lr
+
+        # Sample a batch of inputs and next-character targets.
+        x, y = batch_fn(generator, cfg["batch"])
+
+        # Compute the data loss separately so the history excludes
+        # any optional regularization or auxiliary loss.
+        data_loss = lm_loss(model, x, y)
+
+        # Add an optional model-dependent loss, such as EWC.
+        if extra_loss is not None:
+            loss = data_loss + extra_loss(model)
+        else:
+            loss = data_loss
+
+        # Perform the optimization step.
+        optimizer.zero_grad()
+        loss.backward()
+
+        # Clip the gradient norm to stabilize training.
+        torch.nn.utils.clip_grad_norm_(params, max_norm=1.0)
+
+        optimizer.step()
+
+        # Record the data loss, learning rate, and current step.
+        record = {
+            "step": s,
+            "lr": lr,
+            "loss": float(data_loss.detach().item()),
+        }
+
+        # Optionally track the original-domain validation loss.
+        if (
+            monitor is not None
+            and (s % log_every == 0 or s == steps - 1)
+        ):
+            record["old"] = eval_loss(
+                model,
+                monitor["ids"],
+                cfg["T"],
+                monitor["n_batches"],
+                monitor["seed"],
+            )
+
+        history.append(record)
+
+    return history
+

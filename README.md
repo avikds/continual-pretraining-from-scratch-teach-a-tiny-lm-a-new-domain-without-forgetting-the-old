@@ -18,6 +18,7 @@ python scaffold.py
 - [x] **6.** lm_loss
 - [x] **7.** eval_loss
 - [x] **8.** cosine_lr
+- [x] **9.** train_phase
 
 ---
 
