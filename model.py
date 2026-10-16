@@ -217,3 +217,18 @@ class TinyGPT(nn.Module):
 
         return logits
 
+# Step 6 - lm_loss
+def lm_loss(model, x, y):
+    # Forward pass: obtain logits of shape (B, T, vocab).
+    logits = model(x)
+
+    # Get the vocabulary size from the model's output layer.
+    vocab = model.head.out_features
+
+    # Flatten logits to (B * T, vocab) and targets to (B * T).
+    logits = logits.reshape(-1, vocab)
+    targets = y.reshape(-1)
+
+    # Compute mean cross-entropy loss in nats per character.
+    return F.cross_entropy(logits, targets)
+
