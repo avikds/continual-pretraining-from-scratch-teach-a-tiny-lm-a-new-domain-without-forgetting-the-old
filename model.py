@@ -675,3 +675,56 @@ def lora_param_count(model):
         for param in (module.A, module.B)
     )
 
+# Step 18 - interpolation_path
+def interpolate_states(state_a, state_b, alpha):
+    # Interpolate every parameter tensor along the straight line
+    # between the two model states.
+    return {
+        key: (1.0 - alpha) * state_a[key] + alpha * state_b[key]
+        for key in state_a
+    }
+
+
+def interpolation_path(
+    vocab,
+    state_a,
+    state_b,
+    domains,
+    alphas,
+    T=64,
+    n_batches=16,
+    seed=7,
+):
+    results = []
+
+    # Evaluate a fresh model at every interpolation coefficient.
+    for alpha in alphas:
+        # Create an independent model with the default TinyGPT architecture.
+        model = TinyGPT(vocab)
+
+        # Load the interpolated parameters without modifying either source state.
+        interpolated_state = interpolate_states(
+            state_a,
+            state_b,
+            alpha,
+        )
+        model.load_state_dict(interpolated_state)
+
+        # Measure both domains using identical evaluation settings.
+        losses = domain_losses(
+            model,
+            domains,
+            T=T,
+            n_batches=n_batches,
+            seed=seed,
+        )
+
+        # Record the coefficient and both domain losses.
+        results.append({
+            "alpha": alpha,
+            "A": losses["A"],
+            "B": losses["B"],
+        })
+
+    return results
+

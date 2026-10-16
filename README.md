@@ -27,6 +27,7 @@ python scaffold.py
 - [x] **15.** ewc_penalty
 - [x] **16.** LoRALinear
 - [x] **17.** add_lora
+- [x] **18.** interpolation_path
 
 ---
 
