@@ -16,6 +16,7 @@ python scaffold.py
 - [x] **4.** load_domains
 - [x] **5.** TinyGPT
 - [x] **6.** lm_loss
+- [x] **7.** eval_loss
 
 ---
 

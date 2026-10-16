@@ -232,3 +232,22 @@ def lm_loss(model, x, y):
     # Compute mean cross-entropy loss in nats per character.
     return F.cross_entropy(logits, targets)
 
+# Step 7 - eval_loss
+@torch.no_grad()
+def eval_loss(model, ids, T, n_batches, seed, batch=32):
+    # Create a dedicated random generator for reproducible evaluation.
+    generator = torch.Generator().manual_seed(seed)
+
+    total_loss = 0.0
+
+    # Evaluate on the same sequence windows whenever the seed is unchanged.
+    for _ in range(n_batches):
+        x, y = make_batch(ids, T, batch, generator)
+
+        # Compute the mean next-character cross-entropy for this batch.
+        loss = lm_loss(model, x, y)
+        total_loss += loss.item()
+
+    # Return the mean validation loss as a Python float.
+    return total_loss / n_batches
+
