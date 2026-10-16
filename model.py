@@ -421,3 +421,40 @@ def forgetting_report(before, after, decimals=4):
         "acquisition": round(float(acquisition), decimals),
     }
 
+# Step 12 - old_loss_curve
+def old_loss_curve(history, decimals=4):
+    # Keep only training records that include monitored old-domain loss.
+    records = [record for record in history if "old" in record]
+
+    # Handle phases where no validation loss was monitored.
+    if not records:
+        return {
+            "steps": [],
+            "losses": [],
+            "peak": None,
+            "peak_step": None,
+            "final": None,
+            "rise": None,
+        }
+
+    # Extract the original-domain loss values and corresponding steps.
+    steps = [record["step"] for record in records]
+    raw_losses = [float(record["old"]) for record in records]
+
+    # Find the first occurrence of the maximum old-domain loss.
+    peak_index = raw_losses.index(max(raw_losses))
+    peak = raw_losses[peak_index]
+
+    # Measure how far the loss rose above its initial monitored value.
+    rise = peak - raw_losses[0]
+
+    # Return the monitored loss curve and its summary statistics.
+    return {
+        "steps": steps,
+        "losses": [round(loss, decimals) for loss in raw_losses],
+        "peak": round(peak, decimals),
+        "peak_step": steps[peak_index],
+        "final": round(raw_losses[-1], decimals),
+        "rise": round(rise, decimals),
+    }
+

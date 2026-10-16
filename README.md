@@ -21,6 +21,7 @@ python scaffold.py
 - [x] **9.** train_phase
 - [x] **10.** domain_losses
 - [x] **11.** forgetting_report
+- [x] **12.** old_loss_curve
 
 ---
 
