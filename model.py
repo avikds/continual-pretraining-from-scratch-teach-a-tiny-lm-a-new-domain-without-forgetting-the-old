@@ -552,3 +552,42 @@ def fisher_summary(fisher, k=3):
     # Return the top-k parameter tensors and their mean Fisher values.
     return summary[:k]
 
+# Step 15 - ewc_penalty
+def ewc_penalty(model, fisher, lam):
+    # Snapshot the current parameters as the reference point (theta*).
+    # Clone and detach so subsequent training cannot modify the anchor.
+    theta_star = {
+        name: p.detach().clone()
+        for name, p in model.named_parameters()
+    }
+
+    def penalty(m):
+        # Accumulate the Fisher-weighted squared distance from the anchor.
+        terms = []
+
+        for name, p in m.named_parameters():
+            if name in fisher:
+                # Keep the anchor and Fisher tensor compatible with the
+                # current parameter's device and data type.
+                anchor = theta_star[name].to(
+                    device=p.device,
+                    dtype=p.dtype,
+                )
+                importance = fisher[name].to(
+                    device=p.device,
+                    dtype=p.dtype,
+                )
+
+                terms.append(
+                    (importance * (p - anchor).square()).sum()
+                )
+
+        # EWC regularization: (lambda / 2) * sum_i F_i * (theta_i - theta*_i)^2
+        if terms:
+            return (lam / 2.0) * torch.stack(terms).sum()
+
+        # Return a scalar tensor if no parameters match the Fisher dictionary.
+        return next(m.parameters()).sum() * 0.0
+
+    return penalty
+

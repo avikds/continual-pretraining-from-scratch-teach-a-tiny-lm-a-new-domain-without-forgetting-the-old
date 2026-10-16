@@ -24,6 +24,7 @@ python scaffold.py
 - [x] **12.** old_loss_curve
 - [x] **13.** replay_batch
 - [x] **14.** diagonal_fisher
+- [x] **15.** ewc_penalty
 
 ---
 
