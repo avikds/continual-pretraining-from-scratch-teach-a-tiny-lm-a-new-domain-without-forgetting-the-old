@@ -25,6 +25,7 @@ python scaffold.py
 - [x] **13.** replay_batch
 - [x] **14.** diagonal_fisher
 - [x] **15.** ewc_penalty
+- [x] **16.** LoRALinear
 
 ---
 

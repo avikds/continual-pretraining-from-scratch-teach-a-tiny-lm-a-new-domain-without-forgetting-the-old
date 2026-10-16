@@ -591,3 +591,40 @@ def ewc_penalty(model, fisher, lam):
 
     return penalty
 
+# Step 16 - LoRALinear
+class LoRALinear(nn.Module):
+    def __init__(self, base, rank, alpha):
+        super().__init__()
+
+        # Store the original linear layer without modifying its parameters.
+        self.base = base
+
+        # Low-rank adapter matrices:
+        # A projects input features into a lower-dimensional space.
+        self.A = nn.Parameter(
+            torch.randn(rank, base.in_features) * 0.01
+        )
+
+        # B projects the low-rank representation back to output features.
+        # Zero initialization ensures the adapter initially contributes zero.
+        self.B = nn.Parameter(
+            torch.zeros(base.out_features, rank)
+        )
+
+        # Scale the adapter update by alpha / rank.
+        self.scale = alpha / rank
+
+        # Allow the adapter contribution to be enabled or disabled.
+        self.enabled = True
+
+    def forward(self, x):
+        # When disabled, return the original layer's output exactly.
+        if not self.enabled:
+            return self.base(x)
+
+        # Compute the low-rank update: x @ A.T @ B.T.
+        adapter = x @ self.A.T @ self.B.T
+
+        # Add the scaled adapter update to the original output.
+        return self.base(x) + self.scale * adapter
+
