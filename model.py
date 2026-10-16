@@ -86,3 +86,36 @@ def make_batch(ids, T, batch, generator):
 
     return x, y
 
+# Step 4 - load_domains
+def load_domains(max_chars=600000, val_frac=0.1):
+    # Fetch both text corpora using the existing cached downloader.
+    stories = fetch_text(URLS["stories"], "stories", max_chars)
+    shakespeare = fetch_text(URLS["shakespeare"], "shakespeare", max_chars)
+
+    # Build one shared character vocabulary across both domains.
+    tok = CharTokenizer([stories, shakespeare])
+
+    # Encode both domains using the same tokenizer.
+    stories_ids = tok.encode(stories)
+    shakespeare_ids = tok.encode(shakespeare)
+
+    # Split each token stream by position to prevent validation text
+    # from appearing in training windows.
+    stories_split = int((1 - val_frac) * len(stories_ids))
+    shakespeare_split = int((1 - val_frac) * len(shakespeare_ids))
+
+    # Package both domains using the required structure.
+    return {
+        "tok": tok,
+        "A": {
+            "name": "stories",
+            "train": stories_ids[:stories_split],
+            "val": stories_ids[stories_split:],
+        },
+        "B": {
+            "name": "shakespeare",
+            "train": shakespeare_ids[:shakespeare_split],
+            "val": shakespeare_ids[shakespeare_split:],
+        },
+    }
+
