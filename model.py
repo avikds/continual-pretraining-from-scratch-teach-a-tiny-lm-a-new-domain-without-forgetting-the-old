@@ -776,3 +776,142 @@ def build_base(seed=0, pre_steps=400, cfg=None, max_chars=600000):
         "seed": seed,
     }
 
+# Step 20 - continue_variant
+import copy
+
+
+def continue_variant(
+    base,
+    name,
+    steps,
+    seed=1,
+    replay_frac=0.25,
+    lam=1e5,
+    rank=8,
+    alpha=16,
+    log_every=25,
+):
+    # Start every experiment from an independent copy of the base model.
+    model = copy.deepcopy(base["model"])
+    domains = base["domains"]
+    cfg = dict(base["cfg"])
+
+    # Monitor the original domain on fixed validation windows.
+    monitor = {
+        "ids": domains["A"]["val"],
+        "n_batches": 8,
+        "seed": 123,
+    }
+
+    # Defaults shared by the continuation strategies.
+    extra_loss = None
+    params = None
+    fisher = None
+    extra = {}
+
+    # Sample continuation batches from domain B unless replay is enabled.
+    batch_fn = window_sampler(domains["B"]["train"], cfg["T"])
+
+    if name == "naive":
+        # Continue at the small learning rate without warm-up.
+        cfg.update({
+            "lr_max": 1e-4,
+            "lr_min": 1e-4,
+            "warmup": 0,
+        })
+
+    elif name == "rewarm":
+        # Reuse the original schedule, warming up and decaying again.
+        pass
+
+    elif name == "replay":
+        # Mix new-domain and original-domain windows into every batch.
+        batch_fn = replay_sampler(
+            domains["B"]["train"],
+            domains["A"]["train"],
+            cfg["T"],
+            replay_frac,
+        )
+
+    elif name == "ewc":
+        # Estimate parameter importance using the original training domain.
+        fisher = diagonal_fisher(
+            model,
+            domains["A"]["train"],
+            cfg["T"],
+            32,
+            seed,
+        )
+
+        # Penalize movement away from the pretrained parameters.
+        extra_loss = ewc_penalty(model, fisher, lam)
+
+    elif name == "lora":
+        # Attach adapters and train only their parameters.
+        params = add_lora(model, rank=rank, alpha=alpha)
+
+    else:
+        raise ValueError(f"Unknown continuation variant: {name!r}")
+
+    # Run the selected continuation strategy.
+    history = train_phase(
+        model,
+        steps,
+        cfg,
+        seed,
+        batch_fn,
+        extra_loss=extra_loss,
+        monitor=monitor,
+        log_every=log_every,
+        params=params,
+    )
+
+    # Evaluate the adapted model on both validation domains.
+    after = domain_losses(
+        model,
+        domains,
+        T=cfg["T"],
+    )
+
+    # Quantify forgetting and acquisition relative to the same baseline.
+    report = forgetting_report(base["losses"], after)
+
+    # Summarize the original-domain loss throughout training.
+    curve = old_loss_curve(history)
+
+    # Include strategy-specific diagnostic information.
+    if name == "ewc":
+        extra = {
+            "fisher_top": fisher_summary(fisher),
+        }
+
+    elif name == "lora":
+        # Measure the original model's behavior with adapters disabled.
+        set_lora(model, False)
+
+        try:
+            lora_off = domain_losses(
+                model,
+                domains,
+                T=cfg["T"],
+            )
+        finally:
+            # Leave the returned model with its adapters enabled.
+            set_lora(model, True)
+
+        extra = {
+            "lora_off": lora_off,
+            "trainable": lora_param_count(model),
+        }
+
+    # Return a consistent result structure for every strategy.
+    return {
+        "name": name,
+        "model": model,
+        "history": history,
+        "losses": after,
+        "report": report,
+        "curve": curve,
+        "extra": extra,
+    }
+
