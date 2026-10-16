@@ -251,3 +251,24 @@ def eval_loss(model, ids, T, n_batches, seed, batch=32):
     # Return the mean validation loss as a Python float.
     return total_loss / n_batches
 
+# Step 8 - cosine_lr
+import math
+
+
+def cosine_lr(step, total, warmup, lr_max, lr_min):
+    # Linear warm-up from zero to the maximum learning rate.
+    if step < warmup:
+        return lr_max * step / warmup
+
+    # Compute progress through the cosine-decay phase.
+    # Protect against division by zero for short schedules.
+    p = (step - warmup) / max(total - 1 - warmup, 1)
+
+    # Keep progress within [0, 1].
+    p = max(0.0, min(1.0, p))
+
+    # Cosine decay from lr_max to lr_min.
+    return lr_min + 0.5 * (lr_max - lr_min) * (
+        1.0 + math.cos(math.pi * p)
+    )
+

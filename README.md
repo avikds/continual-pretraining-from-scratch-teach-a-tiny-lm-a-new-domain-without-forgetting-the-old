@@ -17,6 +17,7 @@ python scaffold.py
 - [x] **5.** TinyGPT
 - [x] **6.** lm_loss
 - [x] **7.** eval_loss
+- [x] **8.** cosine_lr
 
 ---
 
